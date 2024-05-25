@@ -1,0 +1,33 @@
+﻿-- Câu 1: Top 5 đội tham gia nhiều trận đấu nhất
+SELECT [Measures].[Number of Games] ON COLUMNS,
+    HEAD( ORDER([Dim Team].[team Name].[team Name].MEMBERS,
+            [Measures].[Number of Games],
+            DESC), 5) ON ROWS
+FROM (
+    SELECT [Dim Team].[team Name].[team Name].MEMBERS ON COLUMNS,
+			[Measures].[Number of Games] ON ROWS
+    FROM (
+        SELECT [Dim Team].[team Key].CHILDREN ON COLUMNS
+        FROM [NBAStatsDW])
+);
+-- Câu 3: Số trận đấu trong 3 tháng đầu năm 2023
+SELECT [Measures].[Number of Games] ON COLUMNS,
+		HEAD([Dim Time].[Year].[Year].&[2023] * [Dim Time].[Month].[Month].MEMBERS,
+		3) ON ROWS
+FROM [NBAStatsDW];
+-- Câu 4: Liệt kê các đội có tổng số lần làm mất bóng (TOV) > 500 và tổng số lần chặn bóng vào rổ (BLK) > 500
+--  trong mùa giải 2015
+SELECT
+    FILTER(
+        [Dim Team].[team Name].[team Name].MEMBERS,
+        ([Measures].[TOV] > 500 AND [Measures].[BLK] > 500)
+    ) ON ROWS,
+    {[Measures].[TOV], [Measures].[BLK]} ON COLUMNS
+FROM [NBAStatsDW]
+WHERE [Dim Game].[season].[season].&[2015];
+-- Câu 5: Tổng số điểm ghi được của đội bóng GSW (Golden State Warriors) khi làm khách (2ndTeam) 
+-- qua từng mùa giải
+SELECT [Measures].[Total Points] on COLUMNS,
+		[Dim Game].[Season].[Season].MEMBERS on ROWS
+FROM [NBAStatsDW]
+WHERE ([Dim Game].[2nd Team].[2nd Team].&[GSW]);

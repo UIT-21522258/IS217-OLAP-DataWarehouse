@@ -1,0 +1,185 @@
+﻿//10. Thống kê số trận đấu theo ngày từng tháng từng năm.
+select {[Measures].[Fact Game Stats Count]} on columns,
+{
+	DrillDownLevel(
+		DrillDownLevel(
+			[Dim Time].[Hierarchy]
+		)
+	)
+} on rows
+from [NBA Stats DW];
+
+//6. Liệt kê những đội có chữ cái đầu là "B” và có Tổng 3PM > 10000.
+SELECT
+  NON EMPTY { [Measures].[3pm] } ON COLUMNS,
+  FILTER([Dim Team].[Team Name].[Team Name],
+		LEFT([Dim Team].[Team Name].CurrentMember.Name, 1) = "B" AND [MEASURES].[3pm] > 10000) on rows
+  FROM [NBA Stats DW];
+
+//7. Trong mua giải 2005, liệt kê 5 đội có OREB cao nhất.
+SELECT 
+NON EMPTY ([Measures].[Oreb]) ON COLUMNS,
+TOPCOUNT([Dim Team].[Team Name].[Team Name],5,[Measures].[Oreb]) on rows
+ FROM [NBA Stats DW]
+ WHERE [Dim Time].[Year].&[2005];
+
+//8. Có 3 loại trận đấu, thống kê số lượng trận của từng loại theo từng năm từ 1996-2003.
+SELECT 
+NON EMPTY [Measures].[Fact Game Stats Count] ON COLUMNS,
+NON EMPTY 
+{ 
+    [Dim Game Type].[Type Name].MEMBERS * 
+    [Dim Time].[Year].[1996]:[Dim Time].[Year].[2003]
+} ON ROWS
+FROM [NBA Stats DW];
+
+//9. Thống kế tổng trận đầu và tồng số lần phạm lỗi, số lỗi phạm nhiều nhất trong 1 trận của 3 đội có MIA, SAS, BOS.
+SELECT 
+NON EMPTY 
+{ 
+    [Dim Team].[Team Name].[MIA], 
+    [Dim Team].[Team Name].[SAS], 
+    [Dim Team].[Team Name].[BOS]
+} ON ROWS,
+NON EMPTY 
+{
+    ([Measures].[Fact Game Stats Count]), 
+    ([Measures].[Pf]), 
+    ([Measures].[MaxFoul])
+} ON COLUMNS
+FROM [NBA Stats DW];
+
+//2. Liệt kê 5 mùa giải có số trận đấu trong tháng 1 cao nhất, sắp xết tăng dần.
+SELECT 
+NON EMPTY {[Measures].[Fact Game Stats Count]} ON COLUMNS,
+non empty ORDER(
+    TOPCOUNT(
+        [Dim Game].[Season].[Season],
+        5,
+        [Measures].[Fact Game Stats Count]
+    ),
+    [Measures].[Fact Game Stats Count], ASC
+) ON ROWS
+FROM [NBA Stats DW]
+WHERE  [Dim Time].[Month].&[1]&[1996] : [Dim Time].[Month].&[1]&[2022];
+
+//11. Thống kê tỉ lệ ném phạt thành công của các đội bóng.
+With Member [Measures].[TiLeNemPhatThanhCong_MDX(%)]
+As ([Measures].[Ftm]/[Measures].[Fta])
+,Format_String = 'Percent'
+SELECT 
+NON EMPTY {[Measures].[TiLeNemPhatThanhCong_MDX(%)]} ON COLUMNS,
+NON EMPTY {[Dim Team].[Team Name].MEMBERS} ON ROWS
+FROM [NBA Stats DW];
+
+//12. Với từng đội bóng, tìm ra hai tháng và năm đội bóng đó thi đấu nhiều trận nhất
+SELECT NON EMPTY
+    {
+        [Measures].[Fact Game Stats Count]
+    } ON COLUMNS,
+    non empty GENERATE(
+        [Dim Team].[Team Name].[Team Name],
+                TOPCOUNT(
+                    [Dim Team].[Team Name].CurrentMember * [Dim Time].[Month].children * [Dim Time].[Year].children ,
+                    2, 
+					[Measures].[Fact Game Stats Count]
+                )
+    ) ON ROWS
+FROM [NBA Stats DW];
+
+//13. Tìm ra đội bóng thi đấu nhiều trận nhất và đội bóng thi đấu thi đấu ít trận nhất theo từng năm
+SELECT NON EMPTY
+    {
+        [Measures].[Fact Game Stats Count]
+    } ON COLUMNS,
+    non empty GENERATE(
+		[Dim Time].[Year].[Year],
+		    [Dim Time].[Year].CurrentMember * UNION (
+				TOPCOUNT([Dim Team].[Team Name].children, 1, [Measures].[Fact Game Stats Count]),
+				BOTTOMCOUNT(nonempty([Dim Team].[Team Name].children), 1, [Measures].[Fact Game Stats Count])
+			) 
+    ) ON ROWS
+FROM [NBA Stats DW];
+
+//14. Liệt kê các đội bóng có điểm nằm trong khoảng [3600, 4500] khi thi đấu với tư cách chủ nhà trong năm 2012.
+select non empty {
+	[Measures].[1stTeamPoint]
+} on columns,
+non empty ORDER(
+    {
+		intersect(
+			{
+				filter(
+					[Dim Game].[1st Team].children, [Measures].[1stTeamPoint] >= 3600
+				)
+			}, 
+			{
+				filter (
+					[Dim Game].[1st Team].children, [Measures].[1stTeamPoint] <= 4500
+				)
+			}
+		)
+	}, [Measures].[1stTeamPoint], desc
+) ON ROWS
+from [NBA Stats DW]
+WHERE [Dim Game].[Season].&[2012];
+
+//15. Thống kê với 3 đội bóng có tổng số lần mất bóng nhiều nhất khi làm khách trên sân đối phương, 
+//theo từng năm, tháng: tính tổng số lần 3 đội bóng đó đoạt lại được bóng từ tay đối thủ sau khi bị cướp trong khi làm khách trên sân đối phương.
+
+
+SELECT NON EMPTY {[Dim Game].[2nd Team].CHILDREN *
+[Measures].[Stl]} ON COLUMNS,
+NON EMPTY {DrillDownLevel(
+		DrillDownLevel(
+			[Dim Time].[Hierarchy]
+		)
+	)} ON ROWS
+FROM ( SELECT (TOPCOUNT([Dim Game].[2nd Team].CHILDREN, 3,
+[Measures].[Tov])) ON COLUMNS
+FROM [NBA Stats DW]);
+
+select [Measures].[Tov] on 0,
+non empty order ( [Dim Game].[2nd Team].children, [Measures].[Tov], desc) on 1
+FROM [NBA Stats DW];
+
+
+//doi co so lan nem bong thanh cong nhieu nhat tren san nha theo tung nam, thong ke tu nam 2020-2022
+SELECT NON EMPTY
+    {
+        [Measures].[Fgm]
+    } ON COLUMNS,
+    non empty GENERATE(
+		[Dim Time].[Year].[2020]:[Dim Time].[Year].[2022],
+		     TOPCOUNT(
+                    [Dim Time].[Year].CurrentMember *  [Dim Game].[1st Team].children,
+                    1, 
+					[Measures].[Fgm]
+                )
+    ) ON ROWS
+FROM [NBA Stats DW];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
